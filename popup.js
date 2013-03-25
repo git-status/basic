@@ -147,22 +147,21 @@ chrome.bookmarks.search("craigslist", function(loop_results){
 	//loc_store.push({name:'Jared', company:'Upstatement', zip:63124});
 	//loc_store.push({name:'McGruff', company:'Police', zip:60652});
 	
-
+	fuckin_status_reason=Array();
 
 	  for (i = 0; i < loop_results.length; i++) {
 			//loc_store[i]=$().load(loop_results[i].url+' div.removed');
 		$('div#cl_temp').append('<div class="results_'+i+'"></div>');
-                current_status=$("div.results_"+i).load(loop_results[i].url+' div.removed h2', '', function(response, status, xhr) {
-				loc_store.push($("div.results_"+i+" h2").html());                    
-	if (status == 'error') {
-                        var msg = "Sorry but there was an error: ";
-                        $(".content").html(msg + xhr.status + " " + xhr.statusText);
-                    }
-			
-                });
+                fuckin_status_reason[]=$("div.results_"+i).load(loop_results[i].url+' div.removed h2', '', function(response, status, xhr) {
+			if (status == 'error') {
+				        var msg = "Sorry but there was an error: ";
+				        $(".content").html(msg + xhr.status + " " + xhr.statusText);
+				    }
+                }).html();
 		//this fucking works ...alert($("div.results_42 h2").html());
 		//loc_store.push($("div.results_"+i+" h2").html());
-
+		 fuckin_status_reason[i]=($("div.results_"+i.toString()+" h2").text()||'available');
+		loc_store.push({"status_reason":fuckin_status_reason[i]});                    
 
 			tbl_results+=('<tr><td>'+loop_results[i].title+'</td><td><a href="'+loop_results[i].url+'">'+loop_results[i].url+'</a></td><td>'+status_text(loc_store[i])+'</td></tr>');			
 
