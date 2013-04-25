@@ -2,26 +2,76 @@
 <head>
 <link type="text/css" href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.10.1/themes/base/jquery-ui.css" rel="stylesheet">
 <link type="text/css" href="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.1/css/bootstrap-combined.min.css" rel="stylesheet">
+<!--
+<link type="text/css" href="/css/jquery-ui.css" rel="stylesheet">
+<link type="text/css" href="/css/bootstrap-combined.min.css" rel="stylesheet">
+-->
 <style>
 div, td, th { color: black; }
+div#cl_temp{
+display:none;
+}
 </style>
 <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 <script src="https://ajax.googleapis.com/ajax/libs/jqueryui/1.10.2/jquery-ui.min.js"></script>
 <script src="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.3.1/js/bootstrap.min.js"></script>
-<script type="text/javascript" src="jquery.total-storage.min.js"></script>
+<!--
+<script src="/js/jquery.min.js"></script>
+<script src="/js/jquery-ui.min.js"></script>
+<script src="/js/bootstrap.min.js"></script>
+-->
 <script src="popup.js"></script>
 </head>
 <body style="width: 800px">
-<div>Search Bookmarks: <input id="search"></div>
+<div>
+	<input  id="search"><button rel="tooltip" data-container="body" data-original-title="Bookmark Search is not Yet Implemented" data-toggle="tooltip" class="btn btn-info"><i class="icon-search"></i>Search</button>
+</div>
+<div class="btn-toolbar">
+	<p>Manage Bookmarks:</p>
+	<div class="btn-group">
+		<button rel="tooltip" data-container="body" data-original-title="Un-select Selected Bookmarks" data-toggle="tooltip" id="btn_clear" class="btn btn-link">Clear Selection</button>
+		<button rel="tooltip" data-container="body" data-original-title="Select Bookmarks with Expired Postings" data-toggle="tooltip" id="btn_select_expired" class="btn btn-link" type="button">Select Expired</button>
+		<button rel="tooltip" data-container="body" data-original-title="Select Bookmarks with Deleted Postings" data-toggle="tooltip" id="btn_select_deleted" class="btn btn-link" type="button">Select Deleted</button>
+		<button rel="tooltip" data-container="body" data-original-title="This will Delete any Bookmarks that you have Selected!" data-toggle="tooltip" id="btn_delete_selected" class="btn btn-danger" type="button"><i class="icon-remove-circle"></i>Delete Selected</button>
+	</div>
+	<div class="btn-group">
+		<button rel="tooltip" data-container="body" data-original-title="Refreshes the Posting Status of Existing Bookmarks" data-toggle="tooltip" id="btn_refresh" class="btn btn-inverse"><i class="icon-repeat"></i>Refresh</button>
+		<button rel="tooltip" data-container="body" data-original-title="For testing purposes this will drop the webSQL database of bookmarks, Chrome Bookmarks will remain intact. " data-toggle="tooltip" id="btn_drop_websql" class="btn btn-danger"><i class="icon-warning-sign"></i>Drop webSQL</button>
+	</div>
+</div>
+<div><p><ul><li>@Todo-make a mgmt page for older postings..that lists for review.. etc checks for repost</li>
+		<li>Sortable Bookmark Table</li>
+		<li>Add Criteria Checkbox(Eg..Check to mark contacted Posting)</li>
+		<li>Any other ideas for Craiglist bookmarks..possibly sharing. or collaboration</li>
+	</ul>
+</p>
+</div>
 <div id="bookmarks"></div>
 <div id="editdialog"></div>
-<div id="deletedialog"></div>
+<div id="deletedialog" style="display:none;"></div>
 <div id="adddialog"></div>
 <div class="container">
-	<div id="bookmark_search"></div>
+	<div id="bookmark_search">
+		<table class="table">
+			<tr class="success"><td>Available</td><td>Post is Still Active on Craiglist</td></tr>
+			<tr class="warning"><td>Expired</td><td>This posting has expired</td></tr>
+			<tr class="error"><td>Deleted</td><td>This posting has been deleted by Author</td></tr>
+		</table>
+		<table class="table table-striped">
+			<thead>
+				<tr>
+					<th>Select</th><th rel="tooltip" data-container="body" data-original-title="This is the Date when posting was bookmarked. date_added in webSQL" data-toggle="tooltip" >Date Added</th><th>Title</th><th>Url</th><th rel="tooltip" data-container="body" data-original-title="Result of AJAX lookup from Craigslist Query for this post. Stored as ad_status in webSQL." data-toggle="tooltip" >Status</th>
+				</tr>
+			</thead>
+			<tbody>
+			</tbody>
+			<tfoot>
+			</tfoot>
+		</table>	
+	</div>
 	<div id="cl_temp"></div>
 </div>
-
+ <div id="code"></div>
 <div class="content">
 </div>
 </body>

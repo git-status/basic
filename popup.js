@@ -1,71 +1,128 @@
 // Copyright (c) 2012 The Chromium Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-
 // Search the bookmarks when entering the search keyword.
-$(function() {
-  $('#search').change(function() {
-     $('#bookmarks').empty();
-     dumpBookmarks($('#search').val());
-  });
-});
-// Traverse the bookmark tree, and print the folder and nodes.
-function dumpBookmarks(query) {
-  var bookmarkTreeNodes = chrome.bookmarks.getTree(
-    function(bookmarkTreeNodes) {
-      $('#bookmarks').append(dumpTreeNodes(bookmarkTreeNodes, query));
-    });
-}
-function dumpTreeNodes(bookmarkNodes, query) {
-  var list = $('<ul>');
-  var i;
-  for (i = 0; i < bookmarkNodes.length; i++) {
-    list.append(dumpNode(bookmarkNodes[i], query));
-  }
-  return list;
-}
-function dumpNode(bookmarkNode, query) {
-  if (bookmarkNode.url) {
-    if (query && !bookmarkNode.children) {
-      if (String(bookmarkNode.url).indexOf(query) == -1) {
-        return $('<span></span>');
-      }
+
+// created by Max Aller <nanodeath@gmail.com>
+function Migrator(db){
+  var migrations = [];
+  this.migration = function(number, func){
+    migrations[number] = func;
+  };
+  var doMigration = function(number){
+    if(migrations[number]){
+      db.changeVersion(db.version, String(number), function(t){
+        migrations[number](t);
+      }, function(err){
+        if(console.error) console.error("Error!: %o", err);
+      }, function(){
+        doMigration(number+1);
+      });
     }
-	//convert date since epoc to regular time/date
-	var fuckingdate=new Date(bookmarkNode.dateAdded);
-//	fuckingdate.setMilliseconds(bookmarkNode.dateAdded);
-	//nodeMonth
-	//nodeDay
-	//nodeYear
-	
-    var anchor = $('<a>');
-    anchor.attr('href', bookmarkNode.url);
-    anchor.text(bookmarkNode.url+bookmarkNode.title+'--'
-		+(fuckingdate.getMonth()+1)+'/'			
-		+fuckingdate.getDate()+'/'
-		+fuckingdate.getFullYear());
-    /*
-     * When clicking on a bookmark in the extension, a new tab is fired with
-     * the bookmark url.
-     */
-    anchor.click(function() {
-      chrome.tabs.create({url: bookmarkNode.url});
-    });
-    var span = $('<span>');
-    var options = bookmarkNode.children ?
-      $('<span>[<a href="#" id="addlink">Add</a>]</span>') :
-      $('<span>[<a id="editlink" href="#">Edit</a> <a id="deletelink" ' +
-        'href="#">Delete</a>]</span>');
-    var edit = bookmarkNode.children ? $('<table class="table-striped table-bordered"><tr><td>Name</td><td>' +
-      '<input id="title"></td></tr><tr><td>URL</td><td><input id="url">' +
-      '</td></tr></table>') : $('<input>');
-    // Show add and edit links when hover over.
-        span.hover(function() {
-        span.append(options);
-        $('#deletelink').click(function() {
+  };
+  this.doIt = function(){
+    var initialVersion = parseInt(db.version) || 0;
+    try {
+      doMigration(initialVersion+1);
+    } catch(e) {
+      if(console.error) console.error(e);
+    }
+  }
+}
+ $(document).ready(function () {
+     if ($("[rel=tooltip]").length) {
+     $("[rel=tooltip]").tooltip();
+     }
+   });
+
+global_loc_store=new Array();
+
+var my_cl_bkmk_app = {};
+my_cl_bkmk_app.webdb = {};
+my_cl_bkmk_app.statuses={0: 'This posting has been deleted by Author', 1:'Available', 2:'This posting has expired'};
+my_cl_bkmk_app.delete_dialog_options={};
+
+$(document).ready(function(){
+	console.log('starting bookmark extension..');
+
+	//user controls at top of from
+
+	//clear selection
+	$('#btn_clear').click(function() {
+		$('tr input:checkbox').prop('checked',false);
+		
+	});
+	//$('#btn_clear').tooltip();
+	//end clear selection
+
+	//DeleteSelected
+	$('#btn_delete_selected').click(function() {
+			var n = $( "input:checked" ).length;
+			deleted_items='<h5>Delete '+n+' items?</h5>';
+		$('tr.error input:checkbox').each(function( index ) {
+			deleted_items+= '<p>'+index + ': ' + $('td#edit_bmk_'+$(this).attr('data-rid')).text()+'</p>';
+		});
+		
           $('#deletedialog').empty().dialog({
                  autoOpen: false,
-                 title: 'Confirm Deletion',
+                 title: 'Confirm Delete--Posts Deleted by Author',
+                 resizable: true,
+                 minHeight: 140,
+		minWidth:200,
+                 modal: true,
+                 overlay: {
+                   backgroundColor: '#000',
+                   opacity: 0.5
+                 },
+                 buttons: {
+                   'Yes, Delete It!': function() {
+
+			$('tr.error input:checkbox').each(function( index ) {
+				var this_item=$('td#edit_bmk_'+$(this).attr('data-rid')).text();				 
+				chrome.bookmarks.remove(this_item);
+				delete_from_websql(this_item);				
+			});
+                     
+                      //span.parent().remove();
+                      $(this).dialog('destroy');
+                    },
+                    Cancel: function() {
+                      $(this).dialog('destroy');
+                    }
+                 }
+               }).append(deleted_items).dialog('open');
+		
+		
+	});
+	//ENd DeleteSelected
+	
+	//select posts deleted.
+	var deleted_items;
+	$('#btn_select_deleted').click(function() {
+		
+		$('tr.error input:checkbox').prop('checked',true);
+		
+         });
+	//select delete posts expired
+	$('#btn_select_expired').click(function() {
+		$('tr.warning input:checkbox').prop('checked',true);
+         });
+
+	//refresh
+	$('#btn_refresh').click(function() {
+		//Looks at all bookmarks in websql that are not status 0-deleted or 2-expired
+		
+		
+         });
+
+	//end refresh
+	
+	//drop websql
+		$('#btn_drop_websql').click(function() {
+		$('tr.warning input:checkbox').prop('checked',true);
+          $('#deletedialog').empty().dialog({
+                 autoOpen: false,
+                 title: 'Confirm Drop WebSQL',
                  resizable: false,
                  height: 140,
                  modal: true,
@@ -74,9 +131,14 @@ function dumpNode(bookmarkNode, query) {
                    opacity: 0.5
                  },
                  buttons: {
-                   'Yes, Delete It!': function() {
-                      chrome.bookmarks.remove(String(bookmarkNode.id));
-                      span.parent().remove();
+                   'Yes, Drop WebSQL Db!': function() {
+                      //chrome.bookmarks.remove(String(bookmarkNode.id));
+			var db = openDatabase('cl_db', '1.0', 'database of ads & statuses', 2 * 1024 * 1024);
+			db.transaction(function (tx) {
+				  tx.executeSql('DROP TABLE cl_ads', null, null, my_cl_bkmk_app.webdb.onSuccess, my_cl_bkmk_app.webdb.onError);
+			});
+			
+                      //span.parent().remove();
                       $(this).dialog('destroy');
                     },
                     Cancel: function() {
@@ -85,97 +147,266 @@ function dumpNode(bookmarkNode, query) {
                  }
                }).dialog('open');
          });
-        $('#addlink').click(function() {
-          $('#adddialog').empty().append(edit).dialog({autoOpen: false,
-            closeOnEscape: true, title: 'Add New Bookmark', modal: true,
-            buttons: {
-            'Add' : function() {
-               chrome.bookmarks.create({parentId: bookmarkNode.id,
-                 title: $('#title').val(), url: $('#url').val()});
-               $('#bookmarks').empty();
-               $(this).dialog('destroy');
-               window.dumpBookmarks();
-             },
-            'Cancel': function() {
-               $(this).dialog('destroy');
-            }
-          }}).dialog('open');
-        });
-        $('#editlink').click(function() {
-         edit.val(anchor.text());
-         $('#editdialog').empty().append(edit).dialog({autoOpen: false,
-           closeOnEscape: true, title: 'Edit Title', modal: true,
-           show: 'slide', buttons: {
-              'Save': function() {
-                 chrome.bookmarks.update(String(bookmarkNode.id), {
-                   title: edit.val()
-                 });
-                 anchor.text(edit.val());
-                 options.show();
-                 $(this).dialog('destroy');
-              },
-             'Cancel': function() {
-                 $(this).dialog('destroy');
-             }
-         }}).dialog('open');
-        });
-        options.fadeIn();
-      },
-      // unhover
-      function() {
-        options.remove();
-      }).append(anchor);
-  }
-  var li = $(bookmarkNode.title ? '<li>' : '<div>').append(span);
-  if (bookmarkNode.children && bookmarkNode.children.length > 0) {
-    li.append(dumpTreeNodes(bookmarkNode.children, query));
-  }
-  return li;
-}
+	//end drop websql
 
-document.addEventListener('DOMContentLoaded', function () {
-  dumpBookmarks();
-});
-//test alerting using search
-chrome.bookmarks.search("craigslist", function(loop_results){
-	var tbl_results='<table class="table table-striped"><thead><tr><th>Title</th><th>Url</th><th>Status</th></tr></thead><tbody>';
+	//end user controls
 
- 	var i;
-	var loc_store=Array();
-
-
-	//loc_store.push({name:'Jared', company:'Upstatement', zip:63124});
-	//loc_store.push({name:'McGruff', company:'Police', zip:60652});
+	var db = openDatabase('cl_db', '1.0', 'database of ads & statuses', 2 * 1024 * 1024);
 	
-	fuckin_status_reason=Array();
+	//begin delete from websql
+	var delete_from_websql=function(sel){
+		//if is a single selction delete this or flatten with underscore and delete all items..	
+		db.transaction(function (tx) {
+				  tx.executeSql('DELETE FROM cl_ads WHERE id=?', sel, null, my_cl_bkmk_app.webdb.onSuccess, my_cl_bkmk_app.webdb.onError);
+		});
+		
+	}
+	//end delete from websql
 
-	  for (i = 0; i < loop_results.length; i++) {
-			//loc_store[i]=$().load(loop_results[i].url+' div.removed');
-		$('div#cl_temp').append('<div class="results_'+i+'"></div>');
-                fuckin_status_reason[]=$("div.results_"+i).load(loop_results[i].url+' div.removed h2', '', function(response, status, xhr) {
-			if (status == 'error') {
-				        var msg = "Sorry but there was an error: ";
-				        $(".content").html(msg + xhr.status + " " + xhr.statusText);
-				    }
-                }).html();
-		//this fucking works ...alert($("div.results_42 h2").html());
-		//loc_store.push($("div.results_"+i+" h2").html());
-		 fuckin_status_reason[i]=($("div.results_"+i.toString()+" h2").text()||'available');
-		loc_store.push({"status_reason":fuckin_status_reason[i]});                    
+	//begin save to websql
+	var save_to_websql= function(bkmk_itm){
+	
+				db.transaction(function (tx) {
+				  tx.executeSql('CREATE TABLE IF NOT EXISTS cl_ads (id unique, ad_url, ad_title, ad_status, date_added)');
+				  tx.executeSql('SELECT * FROM cl_ads WHERE id=?',[bkmk_itm.id],function (tx, results) {
+						if (results.rows.length>0){
+							tx.executeSql('UPDATE cl_ads SET ad_status=? WHERE id=?', [bkmk_itm.ad_status, bkmk_itm.id],my_cl_bkmk_app.webdb.onSuccess,my_cl_bkmk_app.webdb.onError);
+						}else{
+							tx.executeSql('INSERT INTO cl_ads (id, ad_url, ad_title, ad_status, date_added) VALUES (?, ?, ?, ?, ?)', 
+			[bkmk_itm.id, bkmk_itm.ad_url, bkmk_itm.ad_title, bkmk_itm.ad_status,bkmk_itm.date_added],my_cl_bkmk_app.webdb.onSuccess,my_cl_bkmk_app.webdb.onError);													
+						}
+					}
 
-			tbl_results+=('<tr><td>'+loop_results[i].title+'</td><td><a href="'+loop_results[i].url+'">'+loop_results[i].url+'</a></td><td>'+status_text(loc_store[i])+'</td></tr>');			
+				);
+			});
+	};
+	//end save to websql
 
+	//begin refresh from websql
+		var refresh_from_websql= function(bkmk_itm){
+	
+				db.transaction(function (tx) {
+				  tx.executeSql('SELECT * FROM cl_ads WHERE ad_status NOT IN (0,2,)','',function (tx, results) {
+						if (results.rows.length>0){
+							for (var i=0;i<results.rows.length;i++){
+								just_use_load(results.rows.item(i).ad_url, results.rows.item(i).id);
+							}
+						}else{
+							//return nothing to update message
+							console.log('nothing to update');													
+						}
+					}, my_cl_bkmk_app.webdb.onSuccess, my_cl_bkmk_app.webdb.onError);
 
+				});
+			};
+//end refresh
+
+	//update_websql
+	var update_websql=function(itm){
+				db.transaction(function (tx) {
+					tx.executeSql('UPDATE cl_ads SET ad_status=? WHERE id=?', [itm.ad_status, itm.id], my_cl_bkmk_app.webdb.onSuccess,my_cl_bkmk_app.webdb.onError);
+				});
+						
+			};
+	//end_update_websql
+
+	//begin in_websql
+	var in_websql=function(id){
+			db.transaction(function(tx){
+				tx.executeSql('SELECT * FROM cl_ads WHERE id=?', [id], function (tx, results){ 
+						if(results.rows.length>0 && results.rows.length<2){
+							 //r.rows.item(i).cityname;
+							console.log('fn.in_websql Ad_status for #'+id+':',results.rows.item(0).ad_status);
+							if(results.rows.item(0).ad_status==0 || results.rows.item(0).ad_status==2){
+								console.log('fn.in_websql status=(0|2) skip',id); 
+								return true;
+							}else{
+								console.log('fn.in_websql status=1 at last REfresh..skip',id); 
+								return true;
+							}
+						}else{
+							console.log('fn.in_websql Not in websql',id); 
+							return false;
+						}}, my_cl_bkmk_app.webdb.onError); 
+							
+			});	
+		}
+	//end_in_websql
+
+//begin delete_from_websql
+	var delete_from_websql=function(id){
+			db.transaction(function(tx){
+				tx.executeSql('DELETE FROM cl_ads WHERE id=?', id, function (tx, results){ 
+						if(results.rows.length>0){
+							 //r.rows.item(i).cityname;
+							console.log('fn.delete_from_websql #'+id+':',results.rows.item(0).ad_status);
+							if(results.rows.item(0).ad_status==0 || results.rows.item(0).ad_status==2){
+								console.log('fn.in_websql status=(0|2) skip',id); 
+								return true;
+							}else{
+								console.log('fn.in_websql status=1 at last REfresh..skip',id); 
+								return true;
+							}
+						}else{
+							console.log('fn.delete_from_websql Not in websql',id); 
+							return false;
+						}}, my_cl_bkmk_app.webdb.onError); 
+							
+			});	
+		}
+	//end_delete_from_websql
+
+	//begin get_websql_bkmks
+	var get_websql_bkmks=function(){
+				tbl_data='';
+				db.transaction(function(tx){
+				tx.executeSql('SELECT * FROM cl_ads', null, function (tx, results){ 
+						if(results.rows.length>0){
+							console.log('fn.get_websql_bkmks');
+							for (var i=0;i<results.rows.length;i++){
+								console.log('id:'+results.rows.item(i).id+' row value ad_title:',results.rows.item(i).ad_title);
+tbl_data+='<tr class="'+statusCodeToClass(results.rows.item(i).ad_status)+'" id="row_'+results.rows.item(i).id+'" data-rid="'+results.rows.item(i).id+'"><td><input data-rid="'+results.rows.item(i).id+'" type="checkbox"/><i class="icon-remove-circle"></i></td><td>'+results.rows.item(i).date_added+'</td><td id="edit_bmk_'+results.rows.item(i).id+'">'+results.rows.item(i).ad_title+'</td><td><a href="'+results.rows.item(i).ad_url+'">'+results.rows.item(i).ad_url+'</a></td><td class="status_'+results.rows.item(i).id+'">'+my_cl_bkmk_app.statuses[results.rows.item(i).ad_status]+'</td></tr>';
+							}
+						$('div#bookmark_search table.table tbody').append(tbl_data);
+							
+						}else{
+							console.log('fn.get_websql_bkmks:none available'); 
+							tbl_data='';
+							return tbl_data;
+						}}, null, my_cl_bkmk_app.webdb.onError); 
+							
+			});
+			
+	}
+	//end_get_websql_bkmks
+		
+
+	//begin popup.js
+	var dfd = $.Deferred();
+
+	dfd.done(chrome.bookmarks.search("craigslist.org", function(loop_results){
+	 	var i;
+		for (i = 0; i < loop_results.length; i++) {
+			$('div#cl_temp').append('<div class="results_'+loop_results[i].id+'"></div>');
+		      	var this_bm_date=new Date(loop_results[i].dateAdded);
+			var this_display_date=(this_bm_date.getMonth()+1)+'/'			
+						+this_bm_date.getDate()+'/'
+						+this_bm_date.getFullYear();
+			console.log('Loading bookmarks#'+i+'('+loop_results[i].id+') into table:',loop_results[i].url);                    			
+			
+			//save to websql skip localstore shit
+				var this_bkmk ={
+					id:loop_results[i].id, 
+					ad_url:loop_results[i].url, 
+					ad_title:loop_results[i].title, 
+					ad_status:null,
+					date_added:this_display_date
+				};
+				
+			//checking if in webql
+			if(false){
+				if (in_websql(loop_results[i].id)){
+					console.log('Status in websql doing nothing#',loop_results[i].id);
+					//use_load(loop_results[i].url,loop_results[i].id);
+				}else{
+					save_to_websql(this_bkmk);
+					console.log('New Bookmark initial load of websql status',loop_results[i].id);
+					use_load(loop_results[i].url,loop_results[i].id);
+				}
+			}
 			
 		}
-		$.totalStorage('craigslist_ads', loc_store);
-		tbl_results+=('</tbody></table>');
-		$('div#bookmark_search').append(tbl_results);
+			//load bookmarks from Websql not bookmarkstorage..all the rows..
+			var this_tbl=get_websql_bkmks();
+			//alert ('this_tbl_string'+this_tbl);
+			//$('div#bookmark_search table.table tbody').append(this_tbl);
+			//
+			
+	})
+	).done();
+//end popup.js
+
+	//begin use_load
+	var use_load=function(url,idx){
+	var result=null;
+	$("div.results_"+idx).load(url+' div.removed h2', '', 
+		function(responseText, textStatus, XMLHttpRequest) {
+			var msg;
+			if (textStatus == 'error') {
+				var msg = "Sorry but there was an error: ";
+				msg+= XMLHttpRequest.status + " " + XMLHttpRequest.statusText;
+				console.log('fn.use_load error msg#'+idx+': ',msg);
+			}else{
+				console.log('fn.use_loading response');
+
+				if (true){
+					console.log('fn.use_load response#'+idx+': ',responseText.slice(0,50));
+					thehtml=$(responseText).find('div.removed h2').text();;				
+					console.log('find()#'+idx+':',thehtml);
+					var this_stat=(thehtml||"Available");
+					console.log('ad_status',this_stat);
+					$('tr#row_'+idx).addClass(statusClasses(thehtml));
+					$('td.status_'+idx).text(this_stat);
+					msg=thehtml;
+				}else{
+					console.log('fn.use_load wtf');		
+	
+				}
+
+				console.log('{id:'+idx+',ad_status:'+thehtml+'}');
+				var stat_itm= new Array();
+				stat_itm[idx]={id:idx, ad_status:statusCode(thehtml)};
+				update_websql(stat_itm[idx]);
+				
+			}
+			return msg;
+		}
+	);
+
+};
+//end use_load
+
+	//begin just_use_load
+	var just_use_load=function(url,idx){
+	var result=null;
+	$("div.results_"+idx).load(url+' div.removed h2', '', 
+		function(responseText, textStatus, XMLHttpRequest) {
+			var msg;
+			if (textStatus == 'error') {
+				var msg = "Sorry but there was an error: ";
+				msg+= XMLHttpRequest.status + " " + XMLHttpRequest.statusText;
+				console.log('fn.just_use_load error msg#'+idx+': ',msg);
+			}else{
+
+					console.log('fn.just_use_load response#'+idx+': ',responseText.slice(0,50));
+					thehtml=$(responseText).find('div.removed h2').text();;				
+					console.log('find()#'+idx+':',thehtml);
+					var this_stat=(thehtml||"Available");
+					console.log('ad_status',this_stat);
+					$('tr#row_'+idx).addClass(statusClasses(thehtml));
+					$('td.status_'+idx).text(this_stat);
+					msg=thehtml;
+				
+
+				console.log('{id:'+idx+',ad_status:'+thehtml+'}');
+				var stat_itm= new Array();
+				stat_itm[idx]={id:idx, ad_status:statusCode(thehtml)};
+				update_websql(stat_itm[idx]);
+				
+			}
+			return msg;
+		}
+	);
+
+};
+//end just_use_load
+
 
 });
 
+
 function status_text(stat_string_html){
-	return;
+	return "fucked";
 	if($(this).stat_string_html==undefined){
 		return '<button type="button" class="btn btn-success">|'+typeof(stat_string_html)+'|'+stat_string_html.value+'|</button>'+list_properties(stat_string_html);
 	}else if ($(this).stat_string_html.find('h2').text()!=null){
@@ -202,15 +433,129 @@ function list_properties(obj){
 	}
 }
 
-$(document).ready(function(){
+//view-source:http://icant.co.uk/articles/crossdomain-ajax-with-jquery/reusable-ajax.html
+function use_get(url,idx){  
+$.get(url+' div.removed h2',
+    function(code){
+      code=code.replace(/&/mg,'&#38;');
+      code=code.replace(/</mg,'&#60;');
+      code=code.replace(/>/mg,'&#62;');
+      code=code.replace(/\"/mg,'&#34;');
+      code=code.replace(/\t/g,'  ');
+      code=code.replace(/\r?\n/g,'<br>');
+      code=code.replace(/<br><br>/g,'<br>');
+      code=code.replace(/ /g,'&nbsp;');
+      $('#code').html('<pre><code>'+code+'</code></pre>');
+    }
+  );
+	console.log('fn.use_get code: ',code);
+	return code;
+//store to local storage here .. chop off everything except the h2.. call it a day.
+//make separate function to populate post status...
+}
 
-	var myArray = new Array();
-	myArray.push({name:'Jared', company:'Upstatement', zip:63124});
-	myArray.push({name:'McGruff', company:'Police', zip:60652});
-	$.totalStorage('people', myArray);
+//Used to add status CSS zebra colors to <table><tr>
+function statusClasses(statText){
+	switch(statText)
+	{
+	case "This posting has been deleted by its author.":
+		return 'error';
+	  break;
+	case "This posting has expired.":
+	  	return 'warning';
+	  break;
+	default:
+		return 'success';
+		break;
+	}
+	
+}
 
-	//to return:
-	$.totalStorage('people');
-	//jQuery.localStorage('fuckingstorage','thi key is stored in local storage');
-});
+function statusCodeToClass(stat_code){
+	switch(stat_code)
+	{
+	case 0:
+		return 'error';
+	  break;
+	case 2:
+	  	return 'warning';
+	  break;
+	case 1:
+		return 'success';
+		break;
+	default:
+		return 'success';
+		break;
+	}
+	
+}
 
+function statusCode(statText){
+	switch(statText)
+	{
+	case "This posting has been deleted by its author.":
+		return 0;
+	  break;
+	case "This posting has expired.":
+	  	return 2;
+	  break;
+	default:
+		return 1;
+		break;
+	}
+}
+
+//http://stackoverflow.com/questions/905298/jquery-storing-ajax-response-into-global-variable
+jQuery.extend
+(
+{
+    getValues: function(url) 
+    {
+        var result = null;
+        $.ajax(
+            {
+                url: url,
+                type: 'get',
+                dataType: 'html',
+                async: false,
+                cache: false,
+                success: function(data) 
+                {
+                    result = data;
+			console.log('jQuery.fn.getValues sucess: ',data);
+                },
+		error: function(error)
+		{
+			console.log('jQuery.fn.getValues error: ',error);
+		}
+            }
+        );
+       //return result;
+    
+	}
+}
+
+);
+
+// Option List 1, when "Cats" is selected elsewhere
+  //  optList1_Cats += $.getValues("/MyData.aspx?iListNum=1&sVal=cats");
+
+    // Option List 1, when "Dogs" is selected elsewhere
+    //optList1_Dogs += $.getValues("/MyData.aspx?iListNum=1&sVal=dogs");
+
+    // Option List 2, when "Cats" is selected elsewhere
+    //optList2_Cats += $.getValues("/MyData.aspx?iListNum=2&sVal=cats");
+
+    // Option List 2, when "Dogs" is selected elsewhere
+//    optList2_Dogs += $.getValues("/MyData.aspx?iListNum=2&sVal=dogs");
+
+
+
+my_cl_bkmk_app.webdb.onError = function(tx, e) {
+  alert("There has been an error: " + e.message);
+}
+
+my_cl_bkmk_app.webdb.onSuccess = function(tx, r) {
+  // re-render the data.
+  //my_cl_bkmk_app.webdb.getAllTodoItems(loadTodoItems);
+}
