@@ -3,32 +3,6 @@
 // found in the LICENSE file.
 // Search the bookmarks when entering the search keyword.
 
-// created by Max Aller <nanodeath@gmail.com>
-function Migrator(db){
-  var migrations = [];
-  this.migration = function(number, func){
-    migrations[number] = func;
-  };
-  var doMigration = function(number){
-    if(migrations[number]){
-      db.changeVersion(db.version, String(number), function(t){
-        migrations[number](t);
-      }, function(err){
-        if(console.error) console.error("Error!: %o", err);
-      }, function(){
-        doMigration(number+1);
-      });
-    }
-  };
-  this.doIt = function(){
-    var initialVersion = parseInt(db.version) || 0;
-    try {
-      doMigration(initialVersion+1);
-    } catch(e) {
-      if(console.error) console.error(e);
-    }
-  }
-}
  $(document).ready(function () {
      if ($("[rel=tooltip]").length) {
      $("[rel=tooltip]").tooltip();
@@ -39,7 +13,7 @@ global_loc_store=new Array();
 
 var my_cl_bkmk_app = {};
 my_cl_bkmk_app.webdb = {};
-my_cl_bkmk_app.statuses={0: 'This posting has been deleted by Author', 1:'Available', 2:'This posting has expired'};
+my_cl_bkmk_app.statuses={0: 'This posting has been deleted by Author', 1:'Available', 2:'This posting has expired',3:'Unchecked'};
 my_cl_bkmk_app.delete_dialog_options={};
 
 $(document).ready(function(){
@@ -78,9 +52,13 @@ $(document).ready(function(){
                    'Yes, Delete It!': function() {
 
 			$('tr.error input:checkbox').each(function( index ) {
-				var this_item=$('td#edit_bmk_'+$(this).attr('data-rid')).text();				 
-				chrome.bookmarks.remove(this_item);
-				delete_from_websql(this_item);				
+				var this_item=$('td#edit_bmk_'+$(this).attr('data-rid')).text();
+				var this_item_id=$(this).attr('data-rid');				 
+				chrome.bookmarks.remove(this_item_id, function (){
+						console.log('Removed Bookmark #ID: '+this_item_id+' - ',this_item);
+					}				
+				);
+				delete_from_websql(this_item_id);				
 			});
                      
                       //span.parent().remove();
@@ -111,6 +89,24 @@ $(document).ready(function(){
 	//refresh
 	$('#btn_refresh').click(function() {
 		//Looks at all bookmarks in websql that are not status 0-deleted or 2-expired
+			db.transaction(function(tx){
+				tx.executeSql('SELECT * FROM cl_ads WHERE ad_status NOT IN (0,2,)', null, function (tx, results){ 
+						if(results.rows.length>0){
+							//console.log('fn.get_websql_bkmks');
+							for (var i=0;i<results.rows.length;i++){
+
+								just_use_load(results.rows.item(i).ad_url,results.rows.item(i).id);
+								//update_websql_status							
+							}
+														
+						}else{
+							console.log('fn.get_websql_bkmks:none available'); 
+							tbl_data='';
+							return tbl_data;
+						}}, null, my_cl_bkmk_app.webdb.onError); 
+							
+			});
+		
 		
 		
          });
@@ -162,6 +158,14 @@ $(document).ready(function(){
 		
 	}
 	//end delete from websql
+	
+	//init database
+	var init_db=function(){
+			db.transaction(function(tx){
+				tx.executeSql('CREATE TABLE IF NOT EXISTS cl_ads (id unique, ad_url, ad_title, ad_status, date_added)');		
+			});
+		};	
+	//end init database
 
 	//begin save to websql
 	var save_to_websql= function(bkmk_itm){
@@ -281,13 +285,14 @@ tbl_data+='<tr class="'+statusCodeToClass(results.rows.item(i).ad_status)+'" id=
 	//end_get_websql_bkmks
 		
 
-	//begin popup.js
+	//begin main script
 	var dfd = $.Deferred();
 
 	dfd.done(chrome.bookmarks.search("craigslist.org", function(loop_results){
-	 	var i;
+		init_db();	 	
+		var i;
 		for (i = 0; i < loop_results.length; i++) {
-			$('div#cl_temp').append('<div class="results_'+loop_results[i].id+'"></div>');
+			
 		      	var this_bm_date=new Date(loop_results[i].dateAdded);
 			var this_display_date=(this_bm_date.getMonth()+1)+'/'			
 						+this_bm_date.getDate()+'/'
@@ -299,21 +304,21 @@ tbl_data+='<tr class="'+statusCodeToClass(results.rows.item(i).ad_status)+'" id=
 					id:loop_results[i].id, 
 					ad_url:loop_results[i].url, 
 					ad_title:loop_results[i].title, 
-					ad_status:null,
+					ad_status:3,
 					date_added:this_display_date
 				};
 				
 			//checking if in webql
-			if(false){
 				if (in_websql(loop_results[i].id)){
 					console.log('Status in websql doing nothing#',loop_results[i].id);
+					//defer ajax loading until user clicks status check..					
 					//use_load(loop_results[i].url,loop_results[i].id);
 				}else{
 					save_to_websql(this_bkmk);
 					console.log('New Bookmark initial load of websql status',loop_results[i].id);
-					use_load(loop_results[i].url,loop_results[i].id);
+					//defer ajax loading until user clicks status check..
+					//use_load(loop_results[i].url,loop_results[i].id);
 				}
-			}
 			
 		}
 			//load bookmarks from Websql not bookmarkstorage..all the rows..
@@ -324,8 +329,13 @@ tbl_data+='<tr class="'+statusCodeToClass(results.rows.item(i).ad_status)+'" id=
 			
 	})
 	).done();
-//end popup.js
+//end main script
 
+	//create result element within loop..
+	var result_elem=function(){
+				$('div#cl_temp').append('<div class="results_'+loop_results[i].id+'"></div>');
+			};
+	//end create result element
 	//begin use_load
 	var use_load=function(url,idx){
 	var result=null;
@@ -406,7 +416,6 @@ tbl_data+='<tr class="'+statusCodeToClass(results.rows.item(i).ad_status)+'" id=
 
 
 function status_text(stat_string_html){
-	return "fucked";
 	if($(this).stat_string_html==undefined){
 		return '<button type="button" class="btn btn-success">|'+typeof(stat_string_html)+'|'+stat_string_html.value+'|</button>'+list_properties(stat_string_html);
 	}else if ($(this).stat_string_html.find('h2').text()!=null){
@@ -504,7 +513,7 @@ function statusCode(statText){
 		break;
 	}
 }
-
+//AJAX plugin that I did not use..
 //http://stackoverflow.com/questions/905298/jquery-storing-ajax-response-into-global-variable
 jQuery.extend
 (
@@ -549,7 +558,7 @@ jQuery.extend
     // Option List 2, when "Dogs" is selected elsewhere
 //    optList2_Dogs += $.getValues("/MyData.aspx?iListNum=2&sVal=dogs");
 
-
+//end AJAX plugin
 
 my_cl_bkmk_app.webdb.onError = function(tx, e) {
   alert("There has been an error: " + e.message);
